@@ -1,0 +1,4 @@
+Model,Accuracy,Precision Macro,Recall Macro,F1 Macro,F1 Weighted,Roc Auc Macro,Pr Auc Macro
+BERT-Base,0.9005,0.7421,0.8025,0.7687,0.9044,0.9373,0.7920
+HateBERT,0.9021,0.7474,0.7871,0.7657,0.9043,0.9412,0.7852
+RoBERTa-Base,0.9048,0.7557,0.7872,0.7704,0.9070,0.9410,0.7900
