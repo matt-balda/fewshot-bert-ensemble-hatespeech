@@ -1,12 +1,10 @@
 """
-evaluate.py — Evaluation pipeline for the Hate Speech Detection Benchmark.
-
 Loads each saved model checkpoint, runs inference on the held-out test set,
 computes all required metrics, generates confusion matrices, and produces a
 final comparative results table and ranking.
 
 Usage:
-    python evaluate.py                          # evaluate all three models
+    python evaluate.py     # evaluate all three models
     python evaluate.py --model bert-base-uncased
     python evaluate.py --model GroNLP/hateBERT
     python evaluate.py --model roberta-base
@@ -42,14 +40,13 @@ from data_loader import (
     load_raw_data,
     split_data,
 )
+
 from train import MODEL_REGISTRY, HYPERPARAMS
 
 logger = get_logger(__name__, "results/evaluation.log")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Inference
-# ──────────────────────────────────────────────────────────────────────────────
 
 @torch.no_grad()
 def run_inference(
@@ -57,16 +54,7 @@ def run_inference(
     loader: DataLoader,
     device: torch.device,
 ) -> tuple:
-    """Run forward pass on entire DataLoader; return (y_true, y_pred, y_prob).
 
-    Args:
-        model:  Fine-tuned classification model.
-        loader: DataLoader wrapping the test dataset.
-        device: Target compute device.
-
-    Returns:
-        Tuple of (y_true, y_pred, y_prob) as NumPy arrays.
-    """
     model.eval()
     all_labels, all_preds, all_probs = [], [], []
 
@@ -94,9 +82,7 @@ def run_inference(
     )
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Per-model evaluation
-# ──────────────────────────────────────────────────────────────────────────────
 
 def evaluate_model(
     model_key: str,
@@ -106,37 +92,25 @@ def evaluate_model(
     models_dir:  str = "models",
     batch_size:  int = 32,
 ) -> Dict:
-    """Load checkpoint and compute all metrics on the test set.
-
-    Args:
-        model_key:   Key in MODEL_REGISTRY.
-        test_df:     Test DataFrame.
-        device:      Compute device.
-        results_dir: Directory for outputs.
-        models_dir:  Directory containing model checkpoints.
-        batch_size:  Inference batch size.
-
-    Returns:
-        Dictionary with all computed metrics.
-    """
+    
     cfg        = MODEL_REGISTRY[model_key]
     hf_name    = cfg["hf_name"]
     short_name = cfg["short_name"]
     safe_name  = hf_name.replace("/", "_")
     ckpt_path  = Path(models_dir) / safe_name / "best_model"
 
-    logger.info(f"\n{'━'*60}")
+    logger.info(f"\n{'-'*60}")
     logger.info(f"  Evaluating: {short_name}")
     logger.info(f"  Checkpoint: {ckpt_path}")
-    logger.info(f"{'━'*60}")
+    logger.info(f"  {'-'*60}")
 
-    # ── Load tokenizer & model ────────────────────────────────────────────────
+    # Load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained(str(ckpt_path))
     model = AutoModelForSequenceClassification.from_pretrained(
         str(ckpt_path), num_labels=NUM_LABELS
     ).to(device)
 
-    # ── DataLoader ────────────────────────────────────────────────────────────
+    # DataLoader
     test_dataset = HateSpeechDataset(test_df, tokenizer, HYPERPARAMS["max_length"])
     test_loader  = DataLoader(
         test_dataset,
@@ -146,15 +120,15 @@ def evaluate_model(
         pin_memory=device.type == "cuda",
     )
 
-    # ── Inference ─────────────────────────────────────────────────────────────
+    # Inference
     y_true, y_pred, y_prob = run_inference(model, test_loader, device)
 
-    # ── Metrics ───────────────────────────────────────────────────────────────
+    # Metrics
     metrics = compute_metrics(y_true, y_pred, y_prob, CLASS_NAMES)
     metrics["model_key"]   = model_key
     metrics["short_name"]  = short_name
 
-    # ── Classification report ─────────────────────────────────────────────────
+    # Classification report
     report = print_classification_report(y_true, y_pred, CLASS_NAMES)
     report_path = Path(results_dir) / f"{safe_name}_classification_report.txt"
     with open(report_path, "w") as f:
@@ -163,7 +137,7 @@ def evaluate_model(
         f.write(report)
     logger.info(f"\n{report}")
 
-    # ── Confusion matrix ──────────────────────────────────────────────────────
+    # Confusion matrix
     plot_confusion_matrix(
         y_true, y_pred,
         class_names=CLASS_NAMES,
@@ -171,7 +145,7 @@ def evaluate_model(
         save_path=f"{results_dir}/{safe_name}_confusion_matrix.png",
     )
 
-    # ── Save raw predictions ──────────────────────────────────────────────────
+    # Save raw predictions
     pred_df = pd.DataFrame({
         "text":        test_df["text"].values,
         "true_label":  y_true,
@@ -180,7 +154,7 @@ def evaluate_model(
     })
     pred_df.to_csv(f"{results_dir}/{safe_name}_predictions.csv", index=False)
 
-    # ── Save metrics JSON ─────────────────────────────────────────────────────
+    # Save metrics JSON
     saveable = {k: (v if not isinstance(v, float) or not np.isnan(v) else None)
                 for k, v in metrics.items()}
     with open(f"{results_dir}/{safe_name}_metrics.json", "w") as f:
@@ -198,25 +172,15 @@ def evaluate_model(
     return metrics
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Comparative summary
-# ──────────────────────────────────────────────────────────────────────────────
 
 COMPARISON_METRICS = [
     "accuracy", "precision_macro", "recall_macro", "f1_macro", "f1_weighted",
     "roc_auc_macro", "pr_auc_macro",
 ]
 
-
 def build_comparison_table(all_metrics: Dict[str, Dict]) -> pd.DataFrame:
-    """Build and save a comparative results table.
-
-    Args:
-        all_metrics: {model_key: metrics_dict}.
-
-    Returns:
-        DataFrame with one row per model.
-    """
+    
     rows = []
     for mk, m in all_metrics.items():
         row = {"Model": m["short_name"]}
@@ -232,14 +196,7 @@ def build_comparison_table(all_metrics: Dict[str, Dict]) -> pd.DataFrame:
 
 
 def rank_models(all_metrics: Dict[str, Dict]) -> List[str]:
-    """Rank models by F1 Macro (primary) then F1 Weighted (secondary).
-
-    Args:
-        all_metrics: {model_key: metrics_dict}.
-
-    Returns:
-        Ordered list of model keys, best first.
-    """
+    
     return sorted(
         all_metrics.keys(),
         key=lambda k: (
@@ -250,12 +207,9 @@ def rank_models(all_metrics: Dict[str, Dict]) -> List[str]:
     )
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # CLI entry point
-# ──────────────────────────────────────────────────────────────────────────────
-
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Hate Speech Benchmark — Evaluation")
+    p = argparse.ArgumentParser(description="Hate Speech Benchmark: Evaluation")
     p.add_argument(
         "--model",
         type=str,
@@ -277,7 +231,7 @@ def main() -> None:
     device = get_device()
     Path(args.results_dir).mkdir(parents=True, exist_ok=True)
 
-    # ── Load test set ─────────────────────────────────────────────────────────
+    # Load test set
     test_csv = Path(args.data_dir) / "test.csv"
     if test_csv.exists():
         test_df = pd.read_csv(test_csv)
@@ -288,13 +242,13 @@ def main() -> None:
         df = load_raw_data(args.data_dir)
         _, _, test_df = split_data(df, seed=args.seed)
 
-    # ── Select models ─────────────────────────────────────────────────────────
+    # Select models
     if args.model == "all":
         model_keys = list(MODEL_REGISTRY.keys())
     else:
         model_keys = [args.model]
 
-    # ── Evaluate each model ───────────────────────────────────────────────────
+    # Evaluate each model
     all_metrics: Dict[str, Dict] = {}
     for mk in model_keys:
         m = evaluate_model(
@@ -309,7 +263,7 @@ def main() -> None:
         logger.info("Single-model evaluation complete.")
         return
 
-    # ── Comparison table ──────────────────────────────────────────────────────
+    # Comparison table
     table = build_comparison_table(all_metrics)
     table_path = Path(args.results_dir) / "comparison_table.csv"
     table.to_csv(table_path, index=False)
@@ -319,7 +273,7 @@ def main() -> None:
     logger.info("="*80)
     logger.info("\n" + table.to_string(index=False))
 
-    # ── Ranking ───────────────────────────────────────────────────────────────
+    # Ranking
     ranked = rank_models(all_metrics)
     logger.info("\n" + "="*80)
     logger.info("FINAL RANKING (by F1 Macro)")
@@ -332,7 +286,7 @@ def main() -> None:
             f"Accuracy={m['accuracy']:.4f}"
         )
 
-    # ── Comparison bar charts ─────────────────────────────────────────────────
+    # Comparison bar charts
     for metric in ["f1_macro", "f1_weighted", "accuracy", "roc_auc_macro"]:
         plot_comparison_bar(
             {mk: all_metrics[mk] for mk in all_metrics},
@@ -340,7 +294,7 @@ def main() -> None:
             save_path=f"{args.results_dir}/compare_{metric}.png",
         )
 
-    # ── Save full results ─────────────────────────────────────────────────────
+    # Save full results
     with open(f"{args.results_dir}/all_metrics.json", "w") as f:
         json.dump(
             {mk: {k: (v if not (isinstance(v, float) and np.isnan(v)) else None)

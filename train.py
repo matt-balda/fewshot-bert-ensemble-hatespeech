@@ -1,5 +1,5 @@
 """
-train.py — Training pipeline for the Hate Speech Detection Benchmark.
+train.py
 
 Trains three Transformer models under an identical experimental protocol:
   1. bert-base-uncased   (BERT Base)
@@ -27,6 +27,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
@@ -47,6 +48,7 @@ from utils import (
     plot_training_curves,
     set_seed,
 )
+
 from data_loader import (
     NUM_LABELS,
     HateSpeechDataset,
@@ -58,27 +60,23 @@ from data_loader import (
 
 logger = get_logger(__name__, "results/training.log")
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Experimental hyperparameters (identical for all models)
-# ──────────────────────────────────────────────────────────────────────────────
 
 HYPERPARAMS: Dict = {
     "seed":            SEED,          # 42 — fixed for full reproducibility
     "batch_size":      16,            # 16 balances GPU memory with stable gradients
     "learning_rate":   1e-5,          # canonical fine-tuning LR for BERT-family models
-    "num_epochs":      10,            # upper bound; early stopping kicks in earlier
+    "num_epochs":      100,            # upper bound; early stopping kicks in earlier
     "weight_decay":    0.1,           # Stronger L2 regularization to prevent early overfitting
     "warmup_ratio":    0.1,           # 10 % of total steps for linear warmup
     "max_grad_norm":   1.0,           # gradient clipping for training stability
-    "early_stop_patience": 3,         # stop if val F1 doesn't improve for 3 epochs
+    "early_stop_patience": 10,         # stop if val F1 doesn't improve for 100 epochs
     "max_length":      128,           # maximum token length
     "num_workers":     0,             # set > 0 only if OS supports fork-safe multiprocessing
 }
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Model registry
-# ──────────────────────────────────────────────────────────────────────────────
 
+# Model registry
 MODEL_REGISTRY: Dict[str, Dict] = {
     "bert-base-uncased": {
         "hf_name":      "bert-base-uncased",
@@ -136,19 +134,11 @@ MODEL_REGISTRY: Dict[str, Dict] = {
 }
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Training utilities
-# ──────────────────────────────────────────────────────────────────────────────
 
 class EarlyStopping:
-    """Monitor validation F1 macro and stop training if no improvement.
 
-    Args:
-        patience:  Number of epochs with no improvement before stopping.
-        min_delta: Minimum change in monitored value to qualify as improvement.
-    """
-
-    def __init__(self, patience: int = 3, min_delta: float = 1e-4) -> None:
+    def __init__(self, patience: int = 10, min_delta: float = 1e-4) -> None:
         self.patience  = patience
         self.min_delta = min_delta
         self.counter   = 0
@@ -156,7 +146,7 @@ class EarlyStopping:
         self.should_stop = False
 
     def step(self, score: float) -> bool:
-        """Update state. Returns True if training should stop."""
+        
         if self.best_score is None or score > self.best_score + self.min_delta:
             self.best_score = score
             self.counter    = 0
@@ -180,20 +170,7 @@ def train_one_epoch(
     device: torch.device,
     max_grad_norm: float,
 ) -> float:
-    """Run one full pass over the training DataLoader.
-
-    Args:
-        model:         HuggingFace classification model.
-        loader:        Training DataLoader.
-        optimizer:     AdamW optimizer.
-        scheduler:     LR scheduler.
-        loss_fn:       Weighted cross-entropy loss.
-        device:        Target device.
-        max_grad_norm: Gradient clipping norm.
-
-    Returns:
-        Mean training loss over all batches.
-    """
+    
     model.train()
     total_loss = 0.0
 
@@ -229,11 +206,7 @@ def evaluate_loader(
     loss_fn: nn.Module,
     device: torch.device,
 ) -> Tuple[float, np.ndarray, np.ndarray, np.ndarray]:
-    """Evaluate the model on a DataLoader.
-
-    Returns:
-        (mean_loss, y_true, y_pred, y_prob) where y_prob is shape (N, C).
-    """
+    
     model.eval()
     all_labels, all_preds, all_probs = [], [], []
     total_loss = 0.0
@@ -264,9 +237,7 @@ def evaluate_loader(
     return mean_loss, y_true, y_pred, y_prob
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Main training function
-# ──────────────────────────────────────────────────────────────────────────────
+    # Main training function
 
 def train_model(
     model_key: str,
@@ -277,33 +248,20 @@ def train_model(
     results_dir: str = "results",
     models_dir: str  = "models",
 ) -> Dict:
-    """Fine-tune one model from the registry and return training history.
-
-    Args:
-        model_key:    Key in MODEL_REGISTRY (e.g., 'bert-base-uncased').
-        train_df:     Training DataFrame.
-        val_df:       Validation DataFrame.
-        hyperparams:  Hyperparameter dictionary.
-        device:       Compute device.
-        results_dir:  Directory for plots and logs.
-        models_dir:   Directory for saving model checkpoints.
-
-    Returns:
-        Dictionary with training history and best validation metrics.
-    """
+    
     set_seed(hyperparams["seed"])
     cfg        = MODEL_REGISTRY[model_key]
     hf_name    = cfg["hf_name"]
     short_name = cfg["short_name"]
     safe_name  = hf_name.replace("/", "_")
 
-    logger.info(f"\n{'━'*60}")
+    logger.info(f"\n{'-'*60}")
     logger.info(f"  Training: {short_name}  ({hf_name})")
     logger.info(f"  Architecture: {cfg['architecture']}")
     logger.info(f"  Parameters:   {cfg['params']}")
-    logger.info(f"{'━'*60}\n")
+    logger.info(f"{'-'*60}\n")
 
-    # ── Tokenizer & datasets ──────────────────────────────────────────────────
+    # Tokenizer and datasets
     logger.info("Loading tokenizer …")
     tokenizer = AutoTokenizer.from_pretrained(hf_name)
 
@@ -325,16 +283,15 @@ def train_model(
         pin_memory=device.type == "cuda",
     )
 
-    # ── Model ─────────────────────────────────────────────────────────────────
-    logger.info("Loading model …")
+    # Model
+    logger.info("Loading model ...")
     model = AutoModelForSequenceClassification.from_pretrained(
         hf_name,
         num_labels=NUM_LABELS,
         ignore_mismatched_sizes=True,   # allows replacing pre-trained heads
     )
 
-    # ── Layer Freezing (Regularization) ───────────────────────────────────────
-    # Congelar embeddings e as 6 primeiras camadas para evitar overfitting rápido
+    # Layer Freezing (Regularization)
     if hasattr(model, "roberta"):
         encoder = model.roberta.encoder.layer
         embeddings = model.roberta.embeddings
@@ -353,13 +310,11 @@ def train_model(
 
     model = model.to(device)
 
-    # ── Loss (weighted cross-entropy for class imbalance) ─────────────────────
+    # Loss weighted cross-entropy for class imbalance
     class_weights = compute_class_weights(train_df).to(device)
     loss_fn = nn.CrossEntropyLoss(weight=class_weights)
 
-    # ── Optimizer & Scheduler ─────────────────────────────────────────────────
-    # AdamW separates weight decay from the adaptive moment estimates,
-    # correcting a flaw in the original Adam implementation.
+    # Optimizer and Scheduler
     no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped = [
         {
@@ -379,7 +334,7 @@ def train_model(
         optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
     )
 
-    # ── Training loop ─────────────────────────────────────────────────────────
+    # Training loop
     early_stopper = EarlyStopping(patience=hyperparams["early_stop_patience"])
     best_f1   = -1.0
     best_epoch = 0
@@ -415,7 +370,7 @@ def train_model(
             best_epoch = epoch
             model.save_pretrained(str(checkpoint_path))
             tokenizer.save_pretrained(str(checkpoint_path))
-            logger.info(f"  ✓ New best model saved (F1={best_f1:.4f})")
+            logger.info(f" V New best model saved (F1={best_f1:.4f})")
 
         if early_stopper.step(val_f1):
             logger.info(f"  Early stopping triggered at epoch {epoch}.")
@@ -428,7 +383,7 @@ def train_model(
         f"Total time: {elapsed/60:.1f} min\n"
     )
 
-    # ── Plot training curves ──────────────────────────────────────────────────
+    # Plot training curves
     plot_training_curves(
         history["train_loss"],
         history["val_loss"],
@@ -437,7 +392,7 @@ def train_model(
         save_path=f"{results_dir}/{safe_name}_training_curves.png",
     )
 
-    # ── Save hyperparams + history ────────────────────────────────────────────
+    # Save hyperparams + history
     meta = {
         "model_key":    model_key,
         "short_name":   short_name,
@@ -453,12 +408,10 @@ def train_model(
     return meta
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # CLI entry point
-# ──────────────────────────────────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Hate Speech Benchmark — Training")
+    p = argparse.ArgumentParser(description="Hate Speech Benchmark: Training")
     p.add_argument(
         "--model",
         type=str,
@@ -476,7 +429,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--models_dir", type=str,   default="models")
     return p.parse_args()
 
-
 def main() -> None:
     args = parse_args()
     set_seed(args.seed)
@@ -489,7 +441,7 @@ def main() -> None:
     hp["learning_rate"] = args.lr
     hp["seed"]          = args.seed
 
-    # ── Load & split data ─────────────────────────────────────────────────────
+    # Load and split data
     df = load_raw_data(args.data_dir)
     logger.info(f"Total samples: {len(df):,}")
     describe_dataset(df, "full")
@@ -497,7 +449,7 @@ def main() -> None:
     train_df, val_df, test_df = split_data(df, seed=args.seed)
     
     if args.use_augmented:
-        import pandas as pd
+
         aug_path = Path(args.data_dir) / "train_augmented.csv"
         if aug_path.exists():
             train_df = pd.read_csv(aug_path)
@@ -513,24 +465,23 @@ def main() -> None:
     Path(args.data_dir).mkdir(parents=True, exist_ok=True)
     test_df.to_csv(f"{args.data_dir}/test.csv", index=False)
 
-    # ── Select models to train ────────────────────────────────────────────────
+    # Select models to train
     if args.model == "all":
         model_keys = list(MODEL_REGISTRY.keys())
     else:
         model_keys = [args.model]
 
-    # ── Train each model ──────────────────────────────────────────────────────
+    # Train each model
     all_meta = {}
     for mk in model_keys:
         meta = train_model(mk, train_df, val_df, hp, device, args.results_dir, args.models_dir)
         all_meta[mk] = meta
 
-    # ── Save combined training summary ────────────────────────────────────────
+    # Save combined training summary
     with open(f"{args.results_dir}/all_training_meta.json", "w") as f:
         json.dump(all_meta, f, indent=2)
 
     logger.info("All models trained. Run evaluate.py to generate final results.")
-
 
 if __name__ == "__main__":
     main()

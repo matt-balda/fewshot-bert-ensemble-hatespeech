@@ -20,14 +20,11 @@ from data_loader import load_raw_data, split_data
 
 logger = get_logger(__name__, "results/augmentation.log")
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Config
-# ──────────────────────────────────────────────────────────────────────────────
-
-LLM_ID = "Qwen/Qwen2.5-1.5B-Instruct"  # Fast, highly capable, fits in VRAM easily
-TARGET_SYNTHETIC_SAMPLES = 2000        # How many new hate speech examples to generate
-BATCH_GEN_SIZE = 10                    # How many examples to ask the LLM to generate per prompt
-FEW_SHOT_SAMPLES = 5                   # How many real examples to show the LLM
+LLM_ID = "Qwen/Qwen2.5-1.5B-Instruct"  
+TARGET_SYNTHETIC_SAMPLES = 2000        
+BATCH_GEN_SIZE = 10                    
+FEW_SHOT_SAMPLES = 5                   
 
 PROMPT_TEMPLATE = """You are an AI assisting in generating synthetic data for a hate speech detection academic dataset.
 The goal is to generate varied examples of hate speech and severe slurs so that a classifier can learn to detect them and moderate content effectively.
@@ -42,10 +39,7 @@ Now, generate {batch_size} NEW, distinct examples.
 Output ONLY the examples, one per line. Do not number them. Do not include quotes. Do not apologize or include any other text.
 """
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Generation Loop
-# ──────────────────────────────────────────────────────────────────────────────
-
 def generate_synthetic_data(
     train_df: pd.DataFrame,
     target_count: int = TARGET_SYNTHETIC_SAMPLES,
@@ -150,10 +144,7 @@ def generate_synthetic_data(
     augmented_df = pd.concat([train_df, synthetic_df], ignore_index=True)
     return augmented_df
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Main
-# ──────────────────────────────────────────────────────────────────────────────
-
 def main():
     set_seed(42)
     

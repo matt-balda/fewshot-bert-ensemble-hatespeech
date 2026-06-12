@@ -5,15 +5,15 @@
 set -euo pipefail
 
 echo "========================================"
-echo " Hate Speech Detection Benchmark"
-echo " Davidson et al. (2017)"
+echo "Few-shot Learning for an Ensemble of BERT Models (BERT, RoBERTa, and HateBERT)"
+echo "Dataset: hatespeech"
 echo "========================================"
 
-# Install dependencies
-pip install -r requirements.txt
+# Install/sync dependencies using uv
+uv sync
 
 # Train all three models
-python train.py \
+uv run python train.py \
     --epochs 150 \
     --batch_size 16 \
     --lr 2e-5 \
@@ -23,7 +23,7 @@ python train.py \
     --models_dir models
 
 # Evaluate all models and generate comparison table
-python evaluate.py \
+uv run python evaluate.py \
     --data_dir data \
     --results_dir results \
     --models_dir models \

@@ -1,5 +1,5 @@
 """
-utils.py — Utility functions for the Hate Speech Detection Benchmark.
+utils.py
 
 Provides reproducibility helpers, metric computation, visualization routines,
 and logging utilities shared across all pipeline stages.
@@ -29,12 +29,10 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Logging
-# ──────────────────────────────────────────────────────────────────────────────
 
 def get_logger(name: str, log_file: Optional[str] = None) -> logging.Logger:
-    """Return a configured logger that writes to stdout (and optionally a file)."""
+    
     logger = logging.getLogger(name)
     if logger.handlers:          # avoid duplicate handlers on re-import
         return logger
@@ -54,22 +52,12 @@ def get_logger(name: str, log_file: Optional[str] = None) -> logging.Logger:
     return logger
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Reproducibility
-# ──────────────────────────────────────────────────────────────────────────────
 
 SEED = 42
 
-
 def set_seed(seed: int = SEED) -> None:
-    """Fix all random seeds for full reproducibility.
 
-    Sets seeds for Python's random module, NumPy, PyTorch (CPU + GPU), and
-    disables CUDA non-deterministic algorithms where possible.
-
-    Args:
-        seed: Integer seed value. Default: 42.
-    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -81,12 +69,10 @@ def set_seed(seed: int = SEED) -> None:
     os.environ["PYTHONHASHSEED"] = str(seed)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Device helpers
-# ──────────────────────────────────────────────────────────────────────────────
 
 def get_device() -> torch.device:
-    """Return the best available compute device."""
+    
     if torch.cuda.is_available():
         return torch.device("cuda")
     if torch.backends.mps.is_available():
@@ -94,12 +80,9 @@ def get_device() -> torch.device:
     return torch.device("cpu")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Metric computation
-# ──────────────────────────────────────────────────────────────────────────────
 
 CLASS_NAMES = ["hate_speech", "offensive_language", "neither"]
-
 
 def compute_metrics(
     y_true: np.ndarray,
@@ -107,17 +90,7 @@ def compute_metrics(
     y_prob: Optional[np.ndarray] = None,
     class_names: Optional[List[str]] = None,
 ) -> Dict[str, float]:
-    """Compute the full evaluation suite for multi-class classification.
-
-    Args:
-        y_true:      Ground-truth integer labels, shape (N,).
-        y_pred:      Predicted integer labels, shape (N,).
-        y_prob:      Softmax probabilities, shape (N, C).  Required for AUC scores.
-        class_names: Human-readable class names for the report.
-
-    Returns:
-        Dictionary mapping metric names to scalar float values.
-    """
+    
     if class_names is None:
         class_names = CLASS_NAMES
 
@@ -128,7 +101,6 @@ def compute_metrics(
     metrics["precision_macro"]   = precision_score(y_true, y_pred, average="macro",    zero_division=0)
     metrics["recall_macro"]      = recall_score(   y_true, y_pred, average="macro",    zero_division=0)
     metrics["f1_macro"]          = f1_score(       y_true, y_pred, average="macro",    zero_division=0)
-    metrics["f1_weighted"]       = f1_score(       y_true, y_pred, average="weighted", zero_division=0)
 
     # Per-class F1
     per_class_f1 = f1_score(y_true, y_pred, average=None, zero_division=0)
@@ -147,7 +119,7 @@ def compute_metrics(
                 y_bin, y_prob, multi_class="ovr", average="weighted"
             )
         except ValueError:
-            # Can happen if a class is absent from y_true
+            
             metrics["roc_auc_macro"]    = float("nan")
             metrics["roc_auc_weighted"] = float("nan")
 
@@ -170,15 +142,13 @@ def print_classification_report(
     y_pred: np.ndarray,
     class_names: Optional[List[str]] = None,
 ) -> str:
-    """Return sklearn's classification report as a formatted string."""
+    
     if class_names is None:
         class_names = CLASS_NAMES
     return classification_report(y_true, y_pred, target_names=class_names, digits=4, zero_division=0)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Visualization
-# ──────────────────────────────────────────────────────────────────────────────
 
 def plot_confusion_matrix(
     y_true: np.ndarray,
@@ -187,18 +157,7 @@ def plot_confusion_matrix(
     title: str,
     save_path: str,
 ) -> None:
-    """Plot and save a normalized confusion matrix heatmap.
-
-    Normalization over rows (true labels) enables per-class recall visualization
-    independent of class frequency — critical for imbalanced datasets.
-
-    Args:
-        y_true:      Ground-truth labels.
-        y_pred:      Predicted labels.
-        class_names: List of human-readable class names.
-        title:       Figure title.
-        save_path:   Absolute path where the PNG will be written.
-    """
+    
     cm = confusion_matrix(y_true, y_pred)
     cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
 
@@ -237,15 +196,7 @@ def plot_training_curves(
     model_name: str,
     save_path: str,
 ) -> None:
-    """Plot loss and F1 curves over training epochs.
-
-    Args:
-        train_losses: Per-epoch training loss.
-        val_losses:   Per-epoch validation loss.
-        val_f1s:      Per-epoch macro F1 on validation set.
-        model_name:   Model identifier for the plot title.
-        save_path:    Absolute path where the PNG will be written.
-    """
+    
     epochs = range(1, len(train_losses) + 1)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 
@@ -276,13 +227,7 @@ def plot_class_distribution(
     title: str,
     save_path: str,
 ) -> None:
-    """Bar chart of class distribution.
-
-    Args:
-        label_counts: Mapping of class name → sample count.
-        title:        Figure title.
-        save_path:    Output path for the PNG.
-    """
+    
     classes = list(label_counts.keys())
     counts  = list(label_counts.values())
     total   = sum(counts)
@@ -316,13 +261,7 @@ def plot_comparison_bar(
     metric: str,
     save_path: str,
 ) -> None:
-    """Grouped bar chart comparing a single metric across models.
-
-    Args:
-        results:   {model_name: {metric_name: value}}.
-        metric:    Metric key to plot.
-        save_path: Output PNG path.
-    """
+    
     models = list(results.keys())
     values = [results[m].get(metric, 0.0) for m in models]
     colors = ["#3498db", "#e74c3c", "#2ecc71"]
