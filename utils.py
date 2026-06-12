@@ -8,6 +8,7 @@ and logging utilities shared across all pipeline stages.
 import os
 import random
 import logging
+import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -97,15 +98,24 @@ def compute_metrics(
     metrics: Dict[str, float] = {}
 
     # Core classification metrics
-    metrics["accuracy"]          = accuracy_score(y_true, y_pred)
-    metrics["precision_macro"]   = precision_score(y_true, y_pred, average="macro",    zero_division=0)
-    metrics["recall_macro"]      = recall_score(   y_true, y_pred, average="macro",    zero_division=0)
-    metrics["f1_macro"]          = f1_score(       y_true, y_pred, average="macro",    zero_division=0)
+    metrics["accuracy"]           = accuracy_score(y_true, y_pred)
+    metrics["precision_macro"]    = precision_score(y_true, y_pred, average="macro",    zero_division=0)
+    metrics["recall_macro"]       = recall_score(   y_true, y_pred, average="macro",    zero_division=0)
+    metrics["f1_macro"]           = f1_score(       y_true, y_pred, average="macro",    zero_division=0)
+    metrics["precision_weighted"] = precision_score(y_true, y_pred, average="weighted", zero_division=0)
+    metrics["recall_weighted"]    = recall_score(   y_true, y_pred, average="weighted", zero_division=0)
+    metrics["f1_weighted"]        = f1_score(       y_true, y_pred, average="weighted", zero_division=0)
 
-    # Per-class F1
-    per_class_f1 = f1_score(y_true, y_pred, average=None, zero_division=0)
-    for cls_name, f1_val in zip(class_names, per_class_f1):
-        metrics[f"f1_{cls_name}"] = float(f1_val)
+    # Per-class F1, Precision, and Recall
+    per_class_f1   = f1_score(       y_true, y_pred, average=None, zero_division=0)
+    per_class_prec = precision_score(y_true, y_pred, average=None, zero_division=0)
+    per_class_rec  = recall_score(   y_true, y_pred, average=None, zero_division=0)
+    for cls_name, f1_val, p_val, r_val in zip(
+        class_names, per_class_f1, per_class_prec, per_class_rec
+    ):
+        metrics[f"f1_{cls_name}"]        = float(f1_val)
+        metrics[f"precision_{cls_name}"] = float(p_val)
+        metrics[f"recall_{cls_name}"]    = float(r_val)
 
     # AUC scores (require probability estimates)
     if y_prob is not None:
@@ -256,18 +266,33 @@ def plot_class_distribution(
     plt.close(fig)
 
 
+# Extended colour palette
+_PALETTE = [
+    "#3498db", "#e74c3c", "#2ecc71", "#9b59b6",
+    "#f39c12", "#1abc9c", "#e67e22", "#34495e",
+    "#e91e63", "#607d8b",
+]
+
+
 def plot_comparison_bar(
     results: Dict[str, Dict[str, float]],
     metric: str,
     save_path: str,
+    title: Optional[str] = None,
+    figsize: Tuple[float, float] = (10, 5),
 ) -> None:
     
     models = list(results.keys())
-    values = [results[m].get(metric, 0.0) for m in models]
-    colors = ["#3498db", "#e74c3c", "#2ecc71"]
+    values = [results[m].get(metric, 0.0) or 0.0 for m in models]
+    colors = [_PALETTE[i % len(_PALETTE)] for i in range(len(models))]
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    bars = ax.bar(models, values, color=colors[:len(models)], edgecolor="white", width=0.5)
+    # Short labels for readability
+    labels = [m.replace("bert-base-uncased", "BERT").replace("roberta-base", "RoBERTa")
+                .replace("GroNLP_hateBERT", "HateBERT").replace("_", "\n")
+              for m in models]
+
+    fig, ax = plt.subplots(figsize=figsize)
+    bars = ax.bar(labels, values, color=colors, edgecolor="white", width=0.55)
 
     for bar, val in zip(bars, values):
         ax.text(
@@ -276,12 +301,53 @@ def plot_comparison_bar(
             f"{val:.4f}",
             ha="center",
             va="bottom",
-            fontsize=10,
+            fontsize=9,
+            fontweight="bold",
         )
 
-    ax.set_ylim(0, 1.1)
-    ax.set_ylabel(metric.replace("_", " ").title())
-    ax.set_title(f"Model Comparison — {metric.replace('_', ' ').title()}", fontsize=13, fontweight="bold")
+    ax.set_ylim(0, min(max(values) * 1.20, 1.05))
+    ax.set_ylabel(metric.replace("_", " ").title(), fontsize=11)
+    _title = title or f"Model Comparison — {metric.replace('_', ' ').title()}"
+    ax.set_title(_title, fontsize=13, fontweight="bold")
+    ax.grid(axis="y", alpha=0.3)
+    ax.tick_params(axis="x", labelsize=9)
+    plt.tight_layout()
+    Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_all_scenarios_bar(
+    scenarios: Dict[str, Dict[str, float]],
+    metrics: List[str],
+    save_path: str,
+    figsize: Tuple[float, float] = (14, 6),
+) -> None:
+
+    scenario_names = list(scenarios.keys())
+    n_scenarios    = len(scenario_names)
+    n_metrics      = len(metrics)
+
+    x      = np.arange(n_metrics)
+    width  = 0.8 / n_scenarios
+    colors = [_PALETTE[i % len(_PALETTE)] for i in range(n_scenarios)]
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    for i, (name, color) in enumerate(zip(scenario_names, colors)):
+        vals = [scenarios[name].get(m, 0.0) or 0.0 for m in metrics]
+        offset = (i - n_scenarios / 2 + 0.5) * width
+        bars = ax.bar(x + offset, vals, width=width * 0.9, color=color,
+                      label=name, edgecolor="white")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        [m.replace("_", "\n").title() for m in metrics], fontsize=9
+    )
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel("Score", fontsize=11)
+    ax.set_title("All Scenarios — Metric Comparison", fontsize=13, fontweight="bold")
+    ax.legend(loc="lower right", fontsize=8, ncol=2)
     ax.grid(axis="y", alpha=0.3)
     plt.tight_layout()
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
