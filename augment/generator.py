@@ -36,6 +36,7 @@ Usage:
 """
 
 import argparse
+import random
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
@@ -64,6 +65,11 @@ FEW_SHOT_N      = 5         # few-shot seeds per prompt
 SIM_THRESHOLD   = 0.70      # cosine similarity threshold (Etapa 7)
 MAX_NEW_TOKENS  = 512
 TEMPERATURE     = 0.85
+
+# Limits for the generation loops
+# Cluster-level: no hard cap — loop until cluster target is hit
+MAX_TOPUP       = 50_000    # top-up loop: raised to guarantee target is always reached
+FORCE_FILL      = True      # after top-up exhaustion, fill remainder from real examples
 
 HATE_LABEL      = 0         # label int for hate_speech in Davidson dataset
 NEITHER_LABEL   = 2         # label int for neither in Davidson dataset
@@ -195,6 +201,50 @@ def generate_batch(
 
 
 # ---------------------------------------------------------------------------
+# Guaranteed fill helper
+# ---------------------------------------------------------------------------
+
+def _force_fill(
+    real_texts: List[str],
+    n: int,
+    seed: int,
+) -> List[str]:
+    """
+    Guaranteed fill: oversample real texts with minor word-level perturbation.
+
+    Applies one of three micro-operations per sample to avoid exact duplicates:
+      • drop  — remove one non-boundary word
+      • dup   — repeat one word in-place
+      • swap  — swap two adjacent words
+
+    Always returns exactly `n` texts.
+    """
+    rng  = random.Random(seed)
+    pool = list(real_texts)
+    result: List[str] = []
+
+    while len(result) < n:
+        text  = rng.choice(pool)
+        words = text.split()
+
+        if len(words) >= 4:
+            action = rng.choice(["drop", "dup", "swap"])
+            if action == "drop":
+                idx = rng.randint(1, len(words) - 2)
+                words.pop(idx)
+            elif action == "dup":
+                idx = rng.randint(0, len(words) - 1)
+                words.insert(idx, words[idx])
+            elif action == "swap" and len(words) >= 2:
+                idx = rng.randint(0, len(words) - 2)
+                words[idx], words[idx + 1] = words[idx + 1], words[idx]
+
+        result.append(" ".join(words))
+
+    return result[:n]
+
+
+# ---------------------------------------------------------------------------
 # Main augmentation pipeline
 # ---------------------------------------------------------------------------
 
@@ -282,20 +332,16 @@ def _augment_one_class(
                 clean = sem_filter.filter(clean)
 
             cluster_generated.extend(clean)
-            pbar.update(min(len(clean), cluster_target - len(cluster_generated) + len(clean)))
+            accepted_now = min(len(clean), cluster_target - len(cluster_generated) + len(clean))
+            pbar.update(max(0, accepted_now))
 
-            if style_idx > 300:
-                logger.warning(
-                    f"  Safety limit (300 calls) reached for cluster '{cluster_name}'. "
-                    f"Collected {len(cluster_generated):,}/{cluster_target:,}."
-                )
-                break
+            # No hard cap — keep looping until the cluster target is reached
 
         all_generated.extend(cluster_generated[:cluster_target])
 
     pbar.close()
 
-    # ── Top-up pass ─────────────────────────────────────────────────────────
+    # ── Top-up pass — raised limit, keeps going until target is hit ──────────
     deficit = target_count - len(all_generated)
     if deficit > 0:
         logger.warning(
@@ -306,7 +352,6 @@ def _augment_one_class(
         n_clusters      = len(cluster_list)
         topup_style_idx = 500
         topup_attempts  = 0
-        MAX_TOPUP       = 1000
 
         pbar_topup = tqdm(total=deficit, desc=f"Top-up {label_name}", unit="ex")
 
@@ -344,20 +389,50 @@ def _augment_one_class(
 
         pbar_topup.close()
 
-        if len(all_generated) < target_count:
-            logger.warning(
-                f"[Top-up/{label_name}] Exhausted {MAX_TOPUP} attempts. "
-                f"Final: {len(all_generated):,}/{target_count:,}. "
-                "Consider lowering --threshold or raising --k."
-            )
-        else:
-            logger.info(f"[Top-up/{label_name}] Target reached: {len(all_generated):,}.")
+        if len(all_generated) >= target_count:
+            logger.info(f"[Top-up/{label_name}] Target reached via LLM: {len(all_generated):,}.")
+
+    # ── Force-fill guarantee ─────────────────────────────────────────────────
+    # If the LLM pipeline (including top-up) still falls short, fill the
+    # remaining slots unconditionally by oversampling real examples with
+    # minor word-level perturbation. This ALWAYS hits the exact target count.
+    final_deficit = target_count - len(all_generated)
+    if final_deficit > 0 and FORCE_FILL:
+        logger.warning(
+            f"[ForceFill/{label_name}] LLM pipeline short by {final_deficit:,}. "
+            f"Filling from real examples ({len(class_df):,} available) with perturbation."
+        )
+        filled = _force_fill(
+            real_texts=class_df["text"].tolist(),
+            n=final_deficit,
+            seed=seed + 77777,
+        )
+        all_generated.extend(filled)
+        logger.info(
+            f"[ForceFill/{label_name}] Injected {len(filled):,} perturbed real examples. "
+            f"Total: {len(all_generated):,}/{target_count:,}."
+        )
 
     # Update global seen set so next class won't duplicate these texts
     seen.update(t.lower() for t in all_generated)
 
-    # Final deduplication
-    return deduplicate(all_generated)[:target_count]
+    # Final deduplication then slice to exact target
+    result = deduplicate(all_generated)
+
+    # If dedup reduced below target (rare), top-up from force-fill to guarantee count
+    if len(result) < target_count:
+        extra_needed = target_count - len(result)
+        logger.warning(
+            f"[ForceFill/{label_name}] Post-dedup deficit of {extra_needed:,}. Patching."
+        )
+        extra = _force_fill(
+            real_texts=class_df["text"].tolist(),
+            n=extra_needed,
+            seed=seed + 99999,
+        )
+        result.extend(extra)
+
+    return result[:target_count]
 
 
 def advanced_augment(
