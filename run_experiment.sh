@@ -10,10 +10,12 @@
 #   bash run_experiment.sh              # pipeline completo
 #   bash run_experiment.sh --skip-aug   # pula augmentação (usa train_augmented.csv existente)
 #   bash run_experiment.sh --scenario A # executa apenas um cenário
+#   bash run_experiment.sh --clean      # limpa todos os resultados e checkpoints
 #
 # Flags:
 #   --skip-aug       Pula a geração de dados sintéticos (útil se já existe train_augmented.csv)
 #   --scenario [A|B|C|stats|tables]  Executa somente o cenário especificado
+#   --clean          Limpa todos os resultados e checkpoints dos modelos
 
 set -euo pipefail
 
@@ -21,7 +23,7 @@ set -euo pipefail
 # Configurações
 # ---------------------------------------------------------------------------
 SEED=42
-EPOCHS=100
+EPOCHS=200
 BATCH_SIZE=16
 LR=1e-5
 DATA_DIR="data"
@@ -32,6 +34,7 @@ MODELS_A="models/scenario_A"
 MODELS_C="models/scenario_C"
 SKIP_AUG=false
 SCENARIO="all"
+CLEAN=false
 
 # ---------------------------------------------------------------------------
 # Parse de argumentos
@@ -40,9 +43,18 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-aug)   SKIP_AUG=true;      shift ;;
     --scenario)   SCENARIO="$2";      shift 2 ;;
+    --clean)      CLEAN=true;         shift ;;
     *)            echo "Unknown flag: $1"; exit 1 ;;
   esac
 done
+
+# Executa limpeza se a flag --clean for passada
+if [ "$CLEAN" = true ]; then
+  echo "Limpando resultados e checkpoints..."
+  rm -rf results models
+  mkdir -p results models
+  echo "Limpeza concluída com sucesso!"
+fi
 
 echo "========================================================"
 echo " Hate Speech BERT Ensemble + Few-Shot Experiment"
@@ -120,7 +132,7 @@ run_scenario_c() {
     uv run python -m augment.generator \
       --balance majority \
       --k 6 \
-      --threshold 0.70 \
+      --threshold 0.45 \
       --seed "$SEED" \
       --data_dir "$DATA_DIR" \
       --output "$DATA_DIR/train_augmented.csv"

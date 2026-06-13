@@ -25,7 +25,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 EMBEDDER_MODEL = "all-MiniLM-L6-v2"
-DEFAULT_THRESHOLD = 0.70   # relaxed from 0.90 (spec) to avoid over-filtering hate speech
+DEFAULT_THRESHOLD = 0.45   # relaxed from 0.90 (spec) to avoid over-filtering hate speech
 
 
 class SemanticFilter:

@@ -1,0 +1,4 @@
+Model,Accuracy,Precision Macro,Recall Macro,F1 Macro,Precision Weighted,Recall Weighted,F1 Weighted,Roc Auc Macro,Pr Auc Macro,Precision Hate Speech,Recall Hate Speech,F1 Hate Speech
+BERT-Base,0.8948,0.7309,0.7713,0.7484,0.9056,0.8948,0.8995,0.9261,0.7601,0.3763,0.4907,0.4260
+HateBERT,0.8954,0.7364,0.7723,0.7512,0.9065,0.8954,0.9003,0.9402,0.7738,0.3811,0.5093,0.4360
+RoBERTa-Base,0.8935,0.7289,0.7909,0.7546,0.9093,0.8935,0.8998,0.9325,0.7744,0.3795,0.5374,0.4449
