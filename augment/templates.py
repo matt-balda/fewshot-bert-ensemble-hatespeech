@@ -136,3 +136,85 @@ def style_combinations(n: int = 20) -> List[dict]:
         }
         for c in selected
     ]
+
+
+# ---------------------------------------------------------------------------
+# Neither (neutral/non-offensive) category intents and prompt
+# ---------------------------------------------------------------------------
+
+NEITHER_CATEGORY_INTENTS = {
+    "sarcasm_humor": {
+        "intent": "expressing sarcasm, irony, or humor in a non-offensive, non-hateful way",
+        "keywords": ["sarcasm", "irony", "jokes", "wit", "humor", "satire"],
+    },
+    "political_neutral": {
+        "intent": "neutral political commentary or opinion without attacking any group",
+        "keywords": ["political opinion", "commentary", "debate", "policy", "election"],
+    },
+    "everyday_talk": {
+        "intent": "casual everyday conversation, personal observations, or feelings",
+        "keywords": ["daily life", "casual talk", "personal", "feelings", "observations"],
+    },
+    "news_media": {
+        "intent": "sharing or commenting on news or current events neutrally",
+        "keywords": ["news", "current events", "journalism", "media", "reporting"],
+    },
+    "sports_entertainment": {
+        "intent": "talking about sports, music, movies, or pop culture",
+        "keywords": ["sports", "music", "movies", "celebrities", "entertainment"],
+    },
+    "other_neutral": {
+        "intent": "general non-offensive social media content",
+        "keywords": ["general content", "neutral", "non-offensive", "everyday"],
+    },
+}
+
+NEITHER_BASE_PROMPT = """You are assisting in building a text classification benchmark dataset.
+Your task is to generate {n_variants} diverse, realistic examples of NON-OFFENSIVE, NON-HATEFUL social media content in English,
+inspired by the real examples below.
+
+Each generated example should:
+- Be written in Twitter/social media style (informal, casual)
+- Be clearly non-offensive, non-hateful, and non-threatening
+- Preserve the type of content: {intent}
+- Vary in: tone ({tone}), length ({length}), formality ({formality})
+- NOT include hashtags, mentions, or URLs
+
+Real examples from this category:
+{examples}
+
+Generate exactly {n_variants} NEW, distinct examples. Output ONLY the examples, one per line.
+Do NOT number them. Do NOT include quotes. Do NOT add explanations."""
+
+
+def build_neither_prompt(
+    category: str,
+    few_shot_examples: List[str],
+    n_variants: int = 20,
+    tone: str = "casual",
+    length: str = "short (10-20 words)",
+    formality: str = "informal",
+) -> str:
+    """
+    Build a few-shot prompt for generating neutral/non-offensive content.
+
+    Parameters
+    ----------
+    category          : One of the keys in NEITHER_CATEGORY_INTENTS.
+    few_shot_examples : Real 'neither' examples from this cluster.
+    n_variants        : Number of examples to generate in this call.
+    tone / length / formality : Style dimensions for Etapa 5.
+    """
+    cat_info     = NEITHER_CATEGORY_INTENTS.get(category, NEITHER_CATEGORY_INTENTS["other_neutral"])
+    examples_str = "\n".join(f"- {ex}" for ex in few_shot_examples)
+
+    return NEITHER_BASE_PROMPT.format(
+        n_variants=n_variants,
+        category=category.replace("_", " "),
+        intent=cat_info["intent"],
+        tone=tone,
+        length=length,
+        formality=formality,
+        examples=examples_str,
+    )
+

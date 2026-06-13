@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 
 # Delegates directly to the advanced pipeline.

@@ -3,7 +3,7 @@ import json
 import warnings
 from itertools import combinations
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -16,7 +16,9 @@ from utils import get_logger, SEED
 logger = get_logger(__name__, "results/statistical_tests.log")
 
 
-# Wilcoxon signed-rank test
+# ===========================================================================
+# Wilcoxon Signed-Rank Test
+# ===========================================================================
 
 def wilcoxon_test(
     y_true: np.ndarray,
@@ -26,7 +28,7 @@ def wilcoxon_test(
     name_b: str = "B",
     alpha: float = 0.05,
 ) -> Dict:
-    
+
     correct_a = (y_pred_a == y_true).astype(int)
     correct_b = (y_pred_b == y_true).astype(int)
     diff      = correct_a - correct_b
@@ -87,7 +89,7 @@ def pairwise_wilcoxon(
     preds: Dict[str, np.ndarray],
     alpha: float = 0.05,
 ) -> pd.DataFrame:
-    
+
     pairs   = list(combinations(preds.keys(), 2))
     results = [
         wilcoxon_test(y_true, preds[a], preds[b], name_a=a, name_b=b, alpha=alpha)
@@ -99,7 +101,7 @@ def pairwise_wilcoxon(
 # Data loading
 
 def load_predictions(results_dir: str) -> Dict[str, np.ndarray]:
-    
+
     preds: Dict[str, np.ndarray] = {}
     for f in sorted(Path(results_dir).rglob("*_predictions.csv")):
         df = pd.read_csv(f)
@@ -113,50 +115,12 @@ def load_predictions(results_dir: str) -> Dict[str, np.ndarray]:
 
 
 def load_y_true(results_dir: str) -> Optional[np.ndarray]:
-    
+
     for f in sorted(Path(results_dir).rglob("*_predictions.csv")):
         df = pd.read_csv(f)
         if "true_label" in df.columns:
             return df["true_label"].values
     return None
-
-# Text report
-
-def build_report(df: pd.DataFrame, alpha: float) -> str:
-    
-    sig  = df[df["significant"] == True]
-    nsig = df[df["significant"] == False]
-
-    lines = [
-        "=" * 70,
-        "  WILCOXON SIGNED-RANK TEST — PAIRWISE COMPARISON",
-        "=" * 70,
-        f"  Significance level (α) : {alpha}",
-        f"  Test                   : Two-sided Wilcoxon signed-rank",
-        f"  Pairs tested           : {len(df)}",
-        f"  Significant pairs      : {len(sig)}",
-        f"  Non-significant pairs  : {len(nsig)}",
-        "",
-        "── Results ──────────────────────────────────────────────────────────",
-    ]
-
-    display_cols = ["comparison", "n_a_better", "n_b_better", "n_ties",
-                    "statistic", "p_value", "significant", "winner"]
-    available = [c for c in display_cols if c in df.columns]
-    lines.append(df[available].to_string(index=False))
-
-    lines += ["", "── Significant differences ──────────────────────────────────────────"]
-    if sig.empty:
-        lines.append("  → No pair showed a statistically significant difference (α={}).".format(alpha))
-    else:
-        for _, row in sig.iterrows():
-            p_str = f"{row['p_value']:.4f}" if row["p_value"] is not None else "N/A"
-            lines.append(
-                f"  ✓ {row['comparison']:<45}  p={p_str}  winner={row['winner']}"
-            )
-
-    lines += ["", "=" * 70]
-    return "\n".join(lines)
 
 
 # CLI
@@ -178,7 +142,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("=" * 60)
-    logger.info("  WILCOXON SIGNED-RANK STATISTICAL ANALYSIS")
+    logger.info("  STATISTICAL ANALYSIS — Wilcoxon Signed-Rank Test")
     logger.info("=" * 60)
 
     # Load predictions
@@ -196,31 +160,32 @@ def main() -> None:
     for name in preds:
         logger.info(f"    • {name}")
 
-    # Pairwise Wilcoxon
-    logger.info(f"\n--- Pairwise Wilcoxon Signed-Rank Tests (α={args.alpha}) ---")
+    n_pairs = len(list(combinations(preds.keys(), 2)))
+    logger.info(
+        f"\n  Pairs to test : {n_pairs}"
+        f"\n  Alpha         : {args.alpha}"
+    )
+
+    # Wilcoxon
+    logger.info(f"\n--- Wilcoxon Signed-Rank Tests (α={args.alpha}) ---")
     wilcoxon_df = pairwise_wilcoxon(y_true, preds, alpha=args.alpha)
-
-    display_cols = ["comparison", "n_a_better", "n_b_better", "n_ties",
-                    "statistic", "p_value", "significant", "winner"]
-    logger.info("\n" + wilcoxon_df[[c for c in display_cols if c in wilcoxon_df.columns]].to_string(index=False))
-
+    wil_cols = ["comparison", "n_a_better", "n_b_better", "n_ties",
+                "statistic", "p_value", "significant", "winner"]
+    logger.info("\n" + wilcoxon_df[[c for c in wil_cols if c in wilcoxon_df.columns]].to_string(index=False))
     wilcoxon_df.to_csv(out_dir / "wilcoxon_tests.csv", index=False)
-
-    # Text report
-    report = build_report(wilcoxon_df, args.alpha)
-    report_path = out_dir / "wilcoxon_report.txt"
-    report_path.write_text(report)
-    logger.info(f"\nFull report: {report_path}")
 
     # JSON summary
     summary = {
-        "test":      "Wilcoxon signed-rank (two-sided)",
         "alpha":     args.alpha,
         "n_systems": len(preds),
         "systems":   list(preds.keys()),
-        "results":   wilcoxon_df.to_dict(orient="records"),
+        "n_pairs":   n_pairs,
+        "wilcoxon": {
+            "test":    "Wilcoxon signed-rank (two-sided)",
+            "results": wilcoxon_df.to_dict(orient="records"),
+        },
     }
-    (out_dir / "statistical_summary.json").write_text(json.dumps(summary, indent=2))
+    (out_dir / "statistical_summary.json").write_text(json.dumps(summary, indent=2, default=str))
 
     logger.info(f"\nStatistical analysis complete. Results saved to {args.results_dir}/")
 

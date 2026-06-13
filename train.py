@@ -67,10 +67,10 @@ HYPERPARAMS: Dict = {
     "batch_size":      16,            # 16 balances GPU memory with stable gradients
     "learning_rate":   1e-5,          # canonical fine-tuning LR for BERT-family models
     "num_epochs":      100,            # upper bound; early stopping kicks in earlier
-    "weight_decay":    0.1,           # Stronger L2 regularization to prevent early overfitting
+    "weight_decay":    0.01,          # L2 regularization (AdamW default)
     "warmup_ratio":    0.1,           # 10 % of total steps for linear warmup
     "max_grad_norm":   1.0,           # gradient clipping for training stability
-    "early_stop_patience": 10,         # stop if val F1 doesn't improve for 100 epochs
+    "early_stop_patience": 10,         # stop if val F1 doesn't improve for 10 epochs
     "max_length":      128,           # maximum token length
     "num_workers":     0,             # set > 0 only if OS supports fork-safe multiprocessing
 }
@@ -237,7 +237,7 @@ def evaluate_loader(
     return mean_loss, y_true, y_pred, y_prob
 
 
-    # Main training function
+# Main training function
 
 def train_model(
     model_key: str,
@@ -302,11 +302,11 @@ def train_model(
     for param in embeddings.parameters():
         param.requires_grad = False
 
-    for i in range(6):
+    for i in range(3):
         for param in encoder[i].parameters():
             param.requires_grad = False
-    
-    logger.info("Froze embeddings and first 6 encoder layers for stronger regularization.")
+
+    logger.info("Froze embeddings and first 3 encoder layers for regularization.")
 
     model = model.to(device)
 
@@ -318,11 +318,17 @@ def train_model(
     no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped = [
         {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            "params": [
+                p for n, p in model.named_parameters()
+                if p.requires_grad and not any(nd in n for nd in no_decay)
+            ],
             "weight_decay": hyperparams["weight_decay"],
         },
         {
-            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+            "params": [
+                p for n, p in model.named_parameters()
+                if p.requires_grad and any(nd in n for nd in no_decay)
+            ],
             "weight_decay": 0.0,
         },
     ]

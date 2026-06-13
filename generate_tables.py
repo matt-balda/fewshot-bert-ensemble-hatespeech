@@ -40,25 +40,38 @@ logger = get_logger(__name__, "results/generate_tables.log")
 # Scenario detection
 # ---------------------------------------------------------------------------
 
-# Maps (directory_name, file_stem_key) → (scenario_id, display_name, group)
-SCENARIO_MAP: Dict[str, tuple] = {
-    # Baselines — Cenário A
-    "bert-base-uncased":            ("A1", "BERT-Base",         "A — Baseline"),
-    "roberta-base":                 ("A2", "RoBERTa-Base",      "A — Baseline"),
-    "GroNLP_hateBERT":              ("A3", "HateBERT",          "A — Baseline"),
-    # Ensemble sem aug — Cenário B
-    "ensemble_hard":                ("B1", "Hard Voting",       "B — Ensemble"),
-    "ensemble_soft":                ("B2", "Soft Voting",       "B — Ensemble"),
-    # Aug + re-treino — Cenário C (individuais)
-    "bert-base-uncased_aug":        ("C1", "BERT-Base+Aug",     "C — Few-Shot+Aug"),
-    "roberta-base_aug":             ("C2", "RoBERTa-Base+Aug",  "C — Few-Shot+Aug"),
-    "GroNLP_hateBERT_aug":          ("C3", "HateBERT+Aug",      "C — Few-Shot+Aug"),
-    # Aug + ensemble — Cenário C (ensemble)
-    "ensemble_hard_aug":            ("C4", "Hard Voting+Aug",   "C — Few-Shot+Ensemble"),
-    "ensemble_soft_aug":            ("C5", "Soft Voting+Aug",   "C — Few-Shot+Ensemble"),
+# Bug-3 fix: use a two-level map (parent_dir → stem → metadata) so that
+# scenario A and C produce files with the same stem (e.g. bert-base-uncased_metrics.json)
+# but are correctly distinguished by their parent directory.
+SCENARIO_MAP_BY_DIR: Dict[str, Dict[str, tuple]] = {
+    "scenario_a": {
+        "bert-base-uncased": ("A1", "BERT-Base",          "A — Baseline"),
+        "roberta-base":      ("A2", "RoBERTa-Base",       "A — Baseline"),
+        "GroNLP_hateBERT":   ("A3", "HateBERT",           "A — Baseline"),
+    },
+    "scenario_b": {
+        "ensemble_hard":     ("B1", "Hard Voting",        "B — Ensemble"),
+        "ensemble_soft":     ("B2", "Soft Voting",        "B — Ensemble"),
+    },
+    "scenario_c": {
+        "bert-base-uncased": ("C1", "BERT-Base+Aug",      "C — Few-Shot+Aug"),
+        "roberta-base":      ("C2", "RoBERTa-Base+Aug",   "C — Few-Shot+Aug"),
+        "GroNLP_hateBERT":   ("C3", "HateBERT+Aug",       "C — Few-Shot+Aug"),
+        "ensemble_hard":     ("C4", "Hard Voting+Aug",    "C — Few-Shot+Ensemble"),
+        "ensemble_soft":     ("C5", "Soft Voting+Aug",    "C — Few-Shot+Ensemble"),
+    },
 }
 
-# Fallback: detect scenario from parent directory name
+# Fallback flat map for metrics files found outside scenario_A/B/C subdirs
+SCENARIO_MAP_FLAT: Dict[str, tuple] = {
+    "bert-base-uncased": ("A1", "BERT-Base",      "A — Baseline"),
+    "roberta-base":      ("A2", "RoBERTa-Base",   "A — Baseline"),
+    "GroNLP_hateBERT":   ("A3", "HateBERT",       "A — Baseline"),
+    "ensemble_hard":     ("B1", "Hard Voting",    "B — Ensemble"),
+    "ensemble_soft":     ("B2", "Soft Voting",    "B — Ensemble"),
+}
+
+# Fallback: detect scenario group from parent directory name
 _DIR_TO_GROUP = {
     "scenario_a": "A — Baseline",
     "scenario_b": "B — Ensemble",
@@ -77,19 +90,33 @@ def _stem_to_key(stem: str) -> str:
 def detect_scenario(stem: str, parent_dir: str) -> tuple:
     """
     Return (scenario_id, display_name, group) for a given metrics file.
-    Falls back gracefully when no explicit mapping is found.
+
+    Bug-3 fix: first attempts directory-specific lookup via SCENARIO_MAP_BY_DIR
+    so that files with identical stems (e.g. bert-base-uncased_metrics.json)
+    in different scenario folders are correctly distinguished.
     """
     key = _stem_to_key(stem)
-    if key in SCENARIO_MAP:
-        return SCENARIO_MAP[key]
+    parent_lower = parent_dir.lower()
 
-    # Try fuzzy match
-    for map_key, meta in SCENARIO_MAP.items():
+    # 1. Directory-specific lookup (most precise)
+    if parent_lower in SCENARIO_MAP_BY_DIR:
+        dir_map = SCENARIO_MAP_BY_DIR[parent_lower]
+        if key in dir_map:
+            return dir_map[key]
+        # Fuzzy match within the dir map
+        for map_key, meta in dir_map.items():
+            if map_key in key:
+                return meta
+
+    # 2. Fallback to flat map (for metrics outside scenario_A/B/C dirs)
+    if key in SCENARIO_MAP_FLAT:
+        return SCENARIO_MAP_FLAT[key]
+    for map_key, meta in SCENARIO_MAP_FLAT.items():
         if map_key in key:
             return meta
 
-    # Derive from parent directory
-    group = _DIR_TO_GROUP.get(parent_dir.lower(), "Unknown")
+    # 3. Last resort: derive group from parent dir name
+    group   = _DIR_TO_GROUP.get(parent_lower, "Unknown")
     display = key.replace("_", " ").title()
     return ("??", display, group)
 

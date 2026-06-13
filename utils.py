@@ -12,7 +12,6 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import torch
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend for server/batch use

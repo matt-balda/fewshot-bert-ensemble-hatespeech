@@ -21,6 +21,9 @@ try:
 except ImportError:
     HAS_ST = False
 
+import logging
+logger = logging.getLogger(__name__)
+
 EMBEDDER_MODEL = "all-MiniLM-L6-v2"
 DEFAULT_THRESHOLD = 0.70   # relaxed from 0.90 (spec) to avoid over-filtering hate speech
 
@@ -109,7 +112,7 @@ class SemanticFilter:
         n_total  = len(generated_texts)
         n_kept   = len(kept)
         n_drop   = n_total - n_kept
-        print(
+        logger.info(
             f"  [SemanticFilter] threshold={self.threshold:.2f}  "
             f"kept={n_kept}/{n_total}  dropped={n_drop} "
             f"({n_drop/n_total*100:.1f}%)"

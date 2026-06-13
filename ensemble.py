@@ -300,6 +300,11 @@ def main() -> None:
         all_probs[mk] = y_prob
         if y_true_ref is None:
             y_true_ref = y_true
+        else:
+            assert np.array_equal(y_true, y_true_ref), (
+                f"Ground-truth labels mismatch for model '{mk}'. "
+                "Ensure all models use the same test set and DataLoader (shuffle=False)."
+            )
 
     if len(all_preds) < 2:
         logger.error("Need ≥ 2 model checkpoints to run ensemble. Exiting.")
@@ -315,10 +320,15 @@ def main() -> None:
         logger.info("\n" + "-" * 60)
         logger.info("  B1 — Hard Voting")
         logger.info("-" * 60)
-        y_hard    = hard_voting(all_preds)
-        avg_probs = np.mean(np.stack(list(all_probs.values()), axis=0), axis=0)
+        y_hard = hard_voting(all_preds)
+        # Bug-2 fix: use one-hot probabilities for Hard Voting instead of
+        # averaged softmax (which is identical to Soft Voting and incorrect).
+        # One-hot encodes the hard decision so AUC metrics reflect the actual
+        # voting outcome rather than the average probability distribution.
+        n_classes  = NUM_LABELS
+        hard_probs = np.eye(n_classes)[y_hard]   # shape (N, n_classes)
         m = evaluate_and_save(
-            "hard", y_true_ref, y_hard, avg_probs, args.results_dir, test_df
+            "hard", y_true_ref, y_hard, hard_probs, args.results_dir, test_df
         )
         all_ensemble_metrics["hard_voting"] = m
 

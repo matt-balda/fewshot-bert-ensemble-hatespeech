@@ -172,7 +172,7 @@ run_scenario_c() {
 run_stats() {
   echo ""
   echo "----------------------------------------------------"
-  echo " Análise Estatística (McNemar + Bootstrap CI)"
+  echo " Análise Estatística (Wilcoxon Signed-Rank)"
   echo "----------------------------------------------------"
 
   # Consolidate predictions from all scenarios into one results dir for comparison
@@ -187,8 +187,7 @@ run_stats() {
 
   uv run python statistical_tests.py \
     --results_dir results/all_predictions \
-    --alpha 0.05 \
-    --n_boot 1000
+    --alpha 0.05
 }
 
 # ---------------------------------------------------------------------------
