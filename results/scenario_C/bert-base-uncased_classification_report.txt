@@ -2,10 +2,10 @@ Model: BERT-Base
 =======================================================
                     precision    recall  f1-score   support
 
-       hate_speech     0.3763    0.4907    0.4260       214
-offensive_language     0.9544    0.9239    0.9389      2879
-           neither     0.8620    0.8992    0.8802       625
+       hate_speech     0.3653    0.4626    0.4082       214
+offensive_language     0.9497    0.9312    0.9404      2879
+           neither     0.8766    0.8752    0.8759       625
 
           accuracy                         0.8948      3718
-         macro avg     0.7309    0.7713    0.7484      3718
-      weighted avg     0.9056    0.8948    0.8995      3718
+         macro avg     0.7305    0.7563    0.7415      3718
+      weighted avg     0.9038    0.8948    0.8989      3718
