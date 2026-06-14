@@ -1,0 +1,22 @@
+{
+  "accuracy": 0.9045185583647122,
+  "precision_macro": 0.7496613624947156,
+  "recall_macro": 0.7682208987847329,
+  "f1_macro": 0.7583551925657188,
+  "precision_weighted": 0.908743081841821,
+  "recall_weighted": 0.9045185583647122,
+  "f1_weighted": 0.9064935551253888,
+  "f1_hate_speech": 0.43859649122807015,
+  "precision_hate_speech": 0.4132231404958678,
+  "recall_hate_speech": 0.4672897196261682,
+  "f1_offensive_language": 0.9444055944055944,
+  "precision_offensive_language": 0.9507215769095388,
+  "recall_offensive_language": 0.9381729767280306,
+  "f1_neither": 0.8920634920634921,
+  "precision_neither": 0.8850393700787401,
+  "recall_neither": 0.8992,
+  "roc_auc_macro": 0.9375700524502651,
+  "roc_auc_weighted": 0.9525477331117009,
+  "pr_auc_macro": 0.7786006928526956,
+  "strategy": "soft"
+}

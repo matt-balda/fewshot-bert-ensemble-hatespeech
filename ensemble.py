@@ -24,7 +24,7 @@ Usage:
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -95,6 +95,8 @@ def load_model_predictions(
     device: torch.device,
     models_dir: str = "models",
     batch_size: int = 64,
+    logit_adjust: bool = False,
+    train_priors: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Load a saved checkpoint and return (y_true, y_pred, y_prob) on test_df."""
     cfg       = MODEL_REGISTRY[model_key]
@@ -119,6 +121,14 @@ def load_model_predictions(
     )
 
     y_true, y_pred, y_prob = _run_inference(model, loader, device)
+
+    if logit_adjust:
+        target_priors = np.array([1001/17348, 13433/17348, 2914/17348])
+        tp_train = train_priors if train_priors is not None else np.array([1/3, 1/3, 1/3])
+        adjust_factor = target_priors / np.maximum(tp_train, 1e-8)
+        y_prob = y_prob * adjust_factor
+        y_prob = y_prob / y_prob.sum(axis=1, keepdims=True)
+        y_pred = np.argmax(y_prob, axis=1)
 
     # Release GPU memory before loading the next model
     del model
@@ -145,6 +155,8 @@ def hard_voting(all_preds: Dict[str, np.ndarray]) -> np.ndarray:
 
 def soft_voting(
     all_probs: Dict[str, np.ndarray],
+    logit_adjust: bool = False,
+    train_priors: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     B2 — Soft Voting.
@@ -153,6 +165,14 @@ def soft_voting(
     """
     stacked   = np.stack(list(all_probs.values()), axis=0)  # (M, N, C)
     avg_probs = stacked.mean(axis=0)                         # (N, C)
+    
+    if logit_adjust:
+        target_priors = np.array([1001/17348, 13433/17348, 2914/17348])
+        tp_train = train_priors if train_priors is not None else np.array([1/3, 1/3, 1/3])
+        adjust_factor = target_priors / np.maximum(tp_train, 1e-8)
+        avg_probs = avg_probs * adjust_factor
+        avg_probs = avg_probs / avg_probs.sum(axis=1, keepdims=True)
+        
     y_pred    = np.argmax(avg_probs, axis=1)
     return y_pred, avg_probs
 
@@ -253,6 +273,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--models_dir",  type=str, default="models")
     p.add_argument("--batch_size",  type=int, default=64)
     p.add_argument("--seed",        type=int, default=SEED)
+    p.add_argument(
+        "--logit_adjust",
+        action="store_true",
+        help="Apply logit adjustment (prior correction) at inference/aggregation time.",
+    )
+    p.add_argument(
+        "--synthetic_weight",
+        type=float,
+        default=1.0,
+        help="Weight assigned to synthetic samples during training (to compute priors).",
+    )
     return p.parse_args()
 
 
@@ -283,6 +314,24 @@ def main() -> None:
     all_probs: Dict[str, np.ndarray] = {}
     y_true_ref: np.ndarray | None = None
 
+    # Compute training priors based on synthetic weight and train_augmented.csv
+    train_priors = None
+    if args.logit_adjust:
+        train_augmented_csv = Path(args.data_dir) / "train_augmented.csv"
+        # Only use training priors if we are evaluating the Scenario C models
+        if train_augmented_csv.exists() and "scenario_c" in args.models_dir.lower():
+            try:
+                train_df = pd.read_csv(train_augmented_csv)
+                if "is_synthetic" in train_df.columns:
+                    weights = np.where(train_df["is_synthetic"] == 1, args.synthetic_weight, 1.0)
+                    train_counts = np.zeros(3)
+                    for c in range(3):
+                        train_counts[c] = weights[train_df["label"] == c].sum()
+                    train_priors = train_counts / train_counts.sum()
+                    logger.info(f"Loaded training priors from {train_augmented_csv} with synthetic_weight={args.synthetic_weight}: {train_priors.tolist()}")
+            except Exception as e:
+                logger.warning(f"Could not compute train priors from {train_augmented_csv}: {e}")
+
     for mk in model_keys:
         ckpt = Path(args.models_dir) / mk.replace("/", "_") / "best_model"
         if not ckpt.exists():
@@ -293,11 +342,25 @@ def main() -> None:
             continue
 
         logger.info(f"\nLoading: {MODEL_REGISTRY[mk]['short_name']}")
+        # Load raw predictions without logit adjustment first
         y_true, y_pred, y_prob = load_model_predictions(
-            mk, test_df, device, args.models_dir, args.batch_size
+            mk, test_df, device, args.models_dir, args.batch_size,
+            logit_adjust=False
         )
-        all_preds[mk] = y_pred
         all_probs[mk] = y_prob
+        
+        # If logit_adjust is requested, apply it once to get individual predictions for Hard Voting
+        if args.logit_adjust:
+            target_priors = np.array([1001/17348, 13433/17348, 2914/17348])
+            tp_train = train_priors if train_priors is not None else np.array([1/3, 1/3, 1/3])
+            adjust_factor = target_priors / np.maximum(tp_train, 1e-8)
+            y_prob_adj = y_prob * adjust_factor
+            y_prob_adj = y_prob_adj / y_prob_adj.sum(axis=1, keepdims=True)
+            y_pred_adj = np.argmax(y_prob_adj, axis=1)
+            all_preds[mk] = y_pred_adj
+        else:
+            all_preds[mk] = y_pred
+
         if y_true_ref is None:
             y_true_ref = y_true
         else:
@@ -337,7 +400,9 @@ def main() -> None:
         logger.info("\n" + "-" * 60)
         logger.info("  B2 — Soft Voting")
         logger.info("-" * 60)
-        y_soft, avg_probs_soft = soft_voting(all_probs)
+        y_soft, avg_probs_soft = soft_voting(
+            all_probs, logit_adjust=args.logit_adjust, train_priors=train_priors
+        )
         m = evaluate_and_save(
             "soft", y_true_ref, y_soft, avg_probs_soft, args.results_dir, test_df
         )

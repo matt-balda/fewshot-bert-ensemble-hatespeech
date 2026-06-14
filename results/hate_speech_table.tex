@@ -9,21 +9,21 @@
 \toprule
 \textbf{Scenario} & \textbf{Method} & \textbf{Group} & \textbf{Accuracy} & \textbf{Prec. Macro} & \textbf{Rec. Macro} & \textbf{F1 Macro} & \textbf{Prec. (HS)} & \textbf{Rec. (HS)} & \textbf{F1 (HS)} \\
 \midrule
-A1 & BERT-Base & A — Baseline & 0.9072 & 0.7620 & 0.7841 & 0.7726 & \textbf{0.4714} & 0.5000 & 0.4853 \\
+A1 & BERT-Base & A — Baseline & 0.9072 & 0.7620 & 0.7841 & 0.7726 & 0.4714 & 0.5000 & 0.4853 \\
 A2 & RoBERTa-Base & A — Baseline & 0.9005 & 0.7414 & 0.7967 & 0.7656 & 0.4116 & 0.5327 & 0.4644 \\
 A3 & HateBERT & A — Baseline & 0.9061 & 0.7509 & 0.7783 & 0.7636 & 0.4541 & 0.4626 & 0.4583 \\
 \midrule
 ?? & Ensemble & B — Ensemble & — & — & — & — & — & — & — \\
-B1 & Hard Voting & B — Ensemble & \textbf{0.9120} & \textbf{0.7634} & 0.7984 & 0.7798 & 0.4622 & 0.5140 & 0.4867 \\
-B2 & Soft Voting & B — Ensemble & 0.9112 & 0.7631 & \textbf{0.8014} & \textbf{0.7809} & 0.4667 & 0.5234 & \textbf{0.4934} \\
+B1 & Hard Voting & B — Ensemble & 0.9120 & 0.7634 & 0.7984 & 0.7798 & 0.4622 & 0.5140 & 0.4867 \\
+B2 & Soft Voting & B — Ensemble & 0.9112 & 0.7631 & 0.8014 & 0.7809 & 0.4667 & 0.5234 & 0.4934 \\
 \midrule
 ?? & Ensemble & C — Few-Shot+Aug & — & — & — & — & — & — & — \\
-C1 & BERT-Base+Aug & C — Few-Shot+Aug & 0.8948 & 0.7309 & 0.7713 & 0.7484 & 0.3763 & 0.4907 & 0.4260 \\
-C2 & RoBERTa-Base+Aug & C — Few-Shot+Aug & 0.8935 & 0.7289 & 0.7909 & 0.7546 & 0.3795 & \textbf{0.5374} & 0.4449 \\
-C3 & HateBERT+Aug & C — Few-Shot+Aug & 0.8954 & 0.7364 & 0.7723 & 0.7512 & 0.3811 & 0.5093 & 0.4360 \\
+C1 & BERT-Base+Aug & C — Few-Shot+Aug & 0.8999 & 0.7454 & 0.7414 & 0.7433 & 0.4167 & 0.4206 & 0.4186 \\
+C2 & RoBERTa-Base+Aug & C — Few-Shot+Aug & 0.8852 & 0.7142 & 0.7568 & 0.7320 & 0.3390 & 0.4626 & 0.3913 \\
+C3 & HateBERT+Aug & C — Few-Shot+Aug & 0.9018 & 0.7430 & 0.7377 & 0.7403 & 0.3944 & 0.3925 & 0.3934 \\
 \midrule
-C4 & Hard Voting+Aug & C — Few-Shot+Ensemble & 0.9029 & 0.7466 & 0.7900 & 0.7654 & 0.4050 & 0.5280 & 0.4584 \\
-C5 & Soft Voting+Aug & C — Few-Shot+Ensemble & 0.9056 & 0.7523 & 0.7924 & 0.7703 & 0.4280 & 0.5280 & 0.4728 \\
+C4 & Hard Voting+Aug & C — Few-Shot+Ensemble & 0.9056 & 0.7496 & 0.7569 & 0.7531 & 0.4079 & 0.4346 & 0.4208 \\
+C5 & Soft Voting+Aug & C — Few-Shot+Ensemble & 0.9107 & 0.7655 & 0.7290 & 0.7438 & 0.4710 & 0.3411 & 0.3957 \\
 \bottomrule
 \end{tabular}
 \end{table}

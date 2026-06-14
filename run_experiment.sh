@@ -35,16 +35,20 @@ MODELS_C="models/scenario_C"
 SKIP_AUG=false
 SCENARIO="all"
 CLEAN=false
+SYNTHETIC_WEIGHT=1.0
+LOGIT_ADJUST=false
 
 # ---------------------------------------------------------------------------
 # Parse de argumentos
 # ---------------------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skip-aug)   SKIP_AUG=true;      shift ;;
-    --scenario)   SCENARIO="$2";      shift 2 ;;
-    --clean)      CLEAN=true;         shift ;;
-    *)            echo "Unknown flag: $1"; exit 1 ;;
+    --skip-aug)         SKIP_AUG=true;              shift ;;
+    --scenario)         SCENARIO="$2";              shift 2 ;;
+    --clean)            CLEAN=true;                 shift ;;
+    --synthetic-weight) SYNTHETIC_WEIGHT="$2";      shift 2 ;;
+    --logit-adjust)     LOGIT_ADJUST=true;          shift ;;
+    *)                  echo "Unknown flag: $1";    exit 1 ;;
   esac
 done
 
@@ -155,7 +159,13 @@ run_scenario_c() {
     --seed "$SEED" \
     --data_dir "$DATA_DIR" \
     --results_dir "$RESULTS_C" \
-    --models_dir "$MODELS_C"
+    --models_dir "$MODELS_C" \
+    --synthetic_weight "$SYNTHETIC_WEIGHT"
+
+  LA_FLAG=""
+  if [ "$LOGIT_ADJUST" = true ]; then
+    LA_FLAG="--logit_adjust"
+  fi
 
   # Etapa C.2 — Avaliação individual
   echo " [C.2] Evaluating augmented models …"
@@ -165,7 +175,9 @@ run_scenario_c() {
     --results_dir "$RESULTS_C" \
     --models_dir "$MODELS_C" \
     --batch_size 64 \
-    --seed "$SEED"
+    --seed "$SEED" \
+    --synthetic_weight "$SYNTHETIC_WEIGHT" \
+    $LA_FLAG
 
   # Etapa C.3 — Ensemble com modelos augmentados
   echo " [C.3] Running ensemble on augmented models …"
@@ -175,7 +187,9 @@ run_scenario_c() {
     --results_dir "$RESULTS_C" \
     --models_dir "$MODELS_C" \
     --batch_size 64 \
-    --seed "$SEED"
+    --seed "$SEED" \
+    --synthetic_weight "$SYNTHETIC_WEIGHT" \
+    $LA_FLAG
 }
 
 # ---------------------------------------------------------------------------

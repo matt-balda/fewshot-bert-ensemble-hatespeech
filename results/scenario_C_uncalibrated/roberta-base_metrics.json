@@ -1,0 +1,23 @@
+{
+  "accuracy": 0.8816568047337278,
+  "precision_macro": 0.7104662875696176,
+  "recall_macro": 0.7600105644158636,
+  "f1_macro": 0.7303298701382737,
+  "precision_weighted": 0.8987454311295833,
+  "recall_weighted": 0.8816568047337278,
+  "f1_weighted": 0.8889523868775715,
+  "f1_hate_speech": 0.38857142857142857,
+  "precision_hate_speech": 0.3279742765273312,
+  "recall_hate_speech": 0.4766355140186916,
+  "f1_offensive_language": 0.9296625222024867,
+  "precision_offensive_language": 0.9512904398400581,
+  "recall_offensive_language": 0.908996179228899,
+  "f1_neither": 0.8727556596409055,
+  "precision_neither": 0.8521341463414634,
+  "recall_neither": 0.8944,
+  "roc_auc_macro": 0.9232922207359354,
+  "roc_auc_weighted": 0.9429043518245271,
+  "pr_auc_macro": 0.750024366048859,
+  "model_key": "roberta-base",
+  "short_name": "RoBERTa-Base"
+}

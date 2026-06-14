@@ -1,0 +1,11 @@
+Model: RoBERTa-Base
+=======================================================
+                    precision    recall  f1-score   support
+
+       hate_speech     0.3280    0.4766    0.3886       214
+offensive_language     0.9513    0.9090    0.9297      2879
+           neither     0.8521    0.8944    0.8728       625
+
+          accuracy                         0.8817      3718
+         macro avg     0.7105    0.7600    0.7303      3718
+      weighted avg     0.8987    0.8817    0.8890      3718

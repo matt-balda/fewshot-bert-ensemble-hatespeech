@@ -17,7 +17,7 @@ Usage:
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -97,6 +97,8 @@ def evaluate_model(
     results_dir: str = "results",
     models_dir:  str = "models",
     batch_size:  int = 64,
+    logit_adjust: bool = False,
+    train_priors: Optional[np.ndarray] = None,
 ) -> Dict:
     """Run full evaluation for a single checkpoint and save all artefacts."""
     cfg        = MODEL_REGISTRY[model_key]
@@ -133,6 +135,20 @@ def evaluate_model(
     del model
     if device.type == "cuda":
         torch.cuda.empty_cache()
+
+    if logit_adjust:
+        # target_priors based on original train set distribution:
+        # hate_speech=1001, offensive_language=13433, neither=2914
+        # Total = 17348
+        target_priors = np.array([1001/17348, 13433/17348, 2914/17348])
+        tp_train = train_priors if train_priors is not None else np.array([1/3, 1/3, 1/3])
+        logger.info(f"Applying Logit Adjustment: target_priors={target_priors.tolist()}, train_priors={tp_train.tolist()}")
+        
+        # Adjust probabilities: P(y|x; adjusted) \propto P(y|x; model) * (P(y; target) / P(y; train))
+        adjust_factor = target_priors / np.maximum(tp_train, 1e-8)
+        y_prob = y_prob * adjust_factor
+        y_prob = y_prob / y_prob.sum(axis=1, keepdims=True)
+        y_pred = np.argmax(y_prob, axis=1)
 
     # Metrics — full set (macro, weighted, per-class, AUC)
     metrics = compute_metrics(y_true, y_pred, y_prob, CLASS_NAMES)
@@ -257,6 +273,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--models_dir",  type=str, default="models")
     p.add_argument("--batch_size",  type=int, default=64)
     p.add_argument("--seed",        type=int, default=SEED)
+    p.add_argument(
+        "--logit_adjust",
+        action="store_true",
+        help="Apply logit adjustment (prior correction) at inference time.",
+    )
+    p.add_argument(
+        "--synthetic_weight",
+        type=float,
+        default=1.0,
+        help="Weight assigned to synthetic samples during training (to compute priors).",
+    )
     return p.parse_args()
 
 
@@ -278,6 +305,24 @@ def main() -> None:
         df = load_raw_data(args.data_dir)
         _, _, test_df = split_data(df, seed=args.seed)
 
+    # Compute training priors based on synthetic weight and train_augmented.csv
+    train_priors = None
+    if args.logit_adjust:
+        train_augmented_csv = Path(args.data_dir) / "train_augmented.csv"
+        # Only use training priors if we are evaluating the Scenario C models
+        if train_augmented_csv.exists() and "scenario_c" in args.models_dir.lower():
+            try:
+                train_df = pd.read_csv(train_augmented_csv)
+                if "is_synthetic" in train_df.columns:
+                    weights = np.where(train_df["is_synthetic"] == 1, args.synthetic_weight, 1.0)
+                    train_counts = np.zeros(3)
+                    for c in range(3):
+                        train_counts[c] = weights[train_df["label"] == c].sum()
+                    train_priors = train_counts / train_counts.sum()
+                    logger.info(f"Loaded training priors from {train_augmented_csv} with synthetic_weight={args.synthetic_weight}: {train_priors.tolist()}")
+            except Exception as e:
+                logger.warning(f"Could not compute train priors from {train_augmented_csv}: {e}")
+
     # Select models
     model_keys = (
         list(MODEL_REGISTRY.keys()) if args.model == "all" else [args.model]
@@ -298,6 +343,8 @@ def main() -> None:
             results_dir=args.results_dir,
             models_dir=args.models_dir,
             batch_size=args.batch_size,
+            logit_adjust=args.logit_adjust,
+            train_priors=train_priors,
         )
         all_metrics[mk] = m
 

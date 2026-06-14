@@ -1,0 +1,11 @@
+Ensemble — HARD VOTING
+=======================================================
+                    precision    recall  f1-score   support
+
+       hate_speech     0.3870    0.4720    0.4253       214
+offensive_language     0.9512    0.9350    0.9431      2879
+           neither     0.8900    0.8928    0.8914       625
+
+          accuracy                         0.9013      3718
+         macro avg     0.7427    0.7666    0.7532      3718
+      weighted avg     0.9085    0.9013    0.9046      3718

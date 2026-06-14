@@ -169,6 +169,7 @@ def train_one_epoch(
     loss_fn: nn.Module,
     device: torch.device,
     max_grad_norm: float,
+    synthetic_weight: float = 1.0,
 ) -> float:
     
     model.train()
@@ -178,6 +179,7 @@ def train_one_epoch(
         input_ids      = batch["input_ids"].to(device)
         attention_mask = batch["attention_mask"].to(device)
         labels         = batch["labels"].to(device)
+        is_synthetic   = batch["is_synthetic"].to(device)
 
         # token_type_ids is absent for RoBERTa; pass only when present
         kwargs = {"input_ids": input_ids, "attention_mask": attention_mask}
@@ -188,7 +190,25 @@ def train_one_epoch(
         outputs = model(**kwargs)
         logits  = outputs.logits                      # (B, num_labels)
 
-        loss = loss_fn(logits, labels)
+        if synthetic_weight != 1.0:
+            # Compute sample-wise cross entropy
+            raw_loss = nn.functional.cross_entropy(logits, labels, reduction="none")
+            # Apply class weights if present in the loss function
+            if loss_fn.weight is not None:
+                w_samples = loss_fn.weight[labels]
+                raw_loss = raw_loss * w_samples
+            # Apply sample weights based on whether they are synthetic
+            s_weights = torch.where(is_synthetic == 1.0, synthetic_weight, 1.0)
+            loss = (raw_loss * s_weights).sum()
+            # Normalize by sum of weights
+            if loss_fn.weight is not None:
+                denom = (w_samples * s_weights).sum()
+            else:
+                denom = s_weights.sum()
+            loss = loss / (denom + 1e-8)
+        else:
+            loss = loss_fn(logits, labels)
+
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optimizer.step()
@@ -356,6 +376,7 @@ def train_model(
         train_loss = train_one_epoch(
             model, train_loader, optimizer, scheduler, loss_fn, device,
             hyperparams["max_grad_norm"],
+            synthetic_weight=hyperparams.get("synthetic_weight", 1.0),
         )
         val_loss, y_true, y_pred, y_prob = evaluate_loader(model, val_loader, loss_fn, device)
         val_metrics = compute_metrics(y_true, y_pred, y_prob, CLASS_NAMES)
@@ -430,6 +451,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--lr",         type=float, default=HYPERPARAMS["learning_rate"])
     p.add_argument("--seed",       type=int,   default=HYPERPARAMS["seed"])
     p.add_argument("--use_augmented", action="store_true", help="Use augmented dataset if available.")
+    p.add_argument(
+        "--synthetic_weight",
+        type=float,
+        default=1.0,
+        help="Loss weight multiplier for synthetic samples (0.0 to 1.0). Default is 1.0.",
+    )
     p.add_argument("--data_dir",   type=str,   default="data")
     p.add_argument("--results_dir",type=str,   default="results")
     p.add_argument("--models_dir", type=str,   default="models")
@@ -446,6 +473,7 @@ def main() -> None:
     hp["batch_size"]    = args.batch_size
     hp["learning_rate"] = args.lr
     hp["seed"]          = args.seed
+    hp["synthetic_weight"] = args.synthetic_weight
 
     # Load and split data
     df = load_raw_data(args.data_dir)

@@ -2,10 +2,10 @@ Model: HateBERT
 =======================================================
                     precision    recall  f1-score   support
 
-       hate_speech     0.3569    0.4486    0.3975       214
-offensive_language     0.9492    0.9288    0.9389      2879
-           neither     0.8766    0.8864    0.8815       625
+       hate_speech     0.3944    0.3925    0.3934       214
+offensive_language     0.9409    0.9455    0.9432      2879
+           neither     0.8938    0.8752    0.8844       625
 
-          accuracy                         0.8940      3718
-         macro avg     0.7276    0.7546    0.7393      3718
-      weighted avg     0.9029    0.8940    0.8981      3718
+          accuracy                         0.9018      3718
+         macro avg     0.7430    0.7377    0.7403      3718
+      weighted avg     0.9015    0.9018    0.9017      3718

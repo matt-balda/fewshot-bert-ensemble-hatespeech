@@ -146,6 +146,13 @@ class HateSpeechDataset(Dataset):
         max_length: int = MAX_LENGTH,
     ) -> None:
         self.labels = dataframe["label"].values.astype(np.int64)
+        
+        # Check if is_synthetic column is present, otherwise default to all False (0.0)
+        if "is_synthetic" in dataframe.columns:
+            self.is_synthetic = dataframe["is_synthetic"].values.astype(np.float32)
+        else:
+            self.is_synthetic = np.zeros(len(dataframe), dtype=np.float32)
+
         self.encodings = tokenizer(
             dataframe["text"].tolist(),
             padding="max_length",
@@ -160,6 +167,7 @@ class HateSpeechDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         item = {key: val[idx] for key, val in self.encodings.items()}
         item["labels"] = torch.tensor(self.labels[idx], dtype=torch.long)
+        item["is_synthetic"] = torch.tensor(self.is_synthetic[idx], dtype=torch.float32)
         return item
 
 # Class-weight computation (for weighted cross-entropy)

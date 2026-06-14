@@ -1,0 +1,23 @@
+{
+  "accuracy": 0.899677245831092,
+  "precision_macro": 0.74629884565377,
+  "recall_macro": 0.7489063271579891,
+  "f1_macro": 0.747472615873796,
+  "precision_weighted": 0.9011663555004743,
+  "recall_weighted": 0.899677245831092,
+  "f1_weighted": 0.9003917703611748,
+  "f1_hate_speech": 0.4318181818181818,
+  "precision_hate_speech": 0.42035398230088494,
+  "recall_hate_speech": 0.4439252336448598,
+  "f1_offensive_language": 0.9421573736321001,
+  "precision_offensive_language": 0.9423210562890897,
+  "recall_offensive_language": 0.9419937478291073,
+  "f1_neither": 0.8684422921711057,
+  "precision_neither": 0.8762214983713354,
+  "recall_neither": 0.8608,
+  "roc_auc_macro": 0.9188165889524803,
+  "roc_auc_weighted": 0.9382694687405798,
+  "pr_auc_macro": 0.7424031573447089,
+  "model_key": "bert-base-uncased",
+  "short_name": "BERT-Base"
+}
