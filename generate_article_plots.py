@@ -108,10 +108,10 @@ def plot_roc_multiclass(data: dict, save_path: Path) -> None:
     })
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=False)
-    fig.patch.set_facecolor("#FAFAFA")
+    fig.patch.set_facecolor("white")
 
     for ax, cls_idx, cls_key in zip(axes, range(3), CLASS_NAMES):
-        ax.set_facecolor("#FAFAFA")
+        ax.set_facecolor("white")
         ax.plot([0, 1], [0, 1], "k--", lw=0.8, alpha=0.5, label="Random")
 
         for key, df in data.items():
@@ -193,7 +193,7 @@ def plot_roc_multiclass(data: dict, save_path: Path) -> None:
     )
 
     plt.tight_layout(rect=[0, 0, 1, 0.97])
-    fig.savefig(save_path, dpi=DPI, bbox_inches="tight", facecolor=fig.get_facecolor())
+    fig.savefig(save_path, dpi=DPI, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"  Saved → {save_path}")
 
@@ -218,10 +218,10 @@ def plot_pr_curves(data: dict, save_path: Path) -> None:
 
     # 2 panels: left = hate_speech detail, right = macro-average comparison
     fig, (ax_hs, ax_macro) = plt.subplots(1, 2, figsize=(16, 6.5))
-    fig.patch.set_facecolor("#FAFAFA")
+    fig.patch.set_facecolor("white")
 
     for ax in [ax_hs, ax_macro]:
-        ax.set_facecolor("#FAFAFA")
+        ax.set_facecolor("white")
 
     # ── Panel A: Hate Speech class ────────────────────────────────────────────
     hs_idx = 0  # hate_speech = class 0
@@ -365,7 +365,7 @@ def plot_pr_curves(data: dict, save_path: Path) -> None:
     )
 
     plt.tight_layout(rect=[0, 0, 1, 0.97])
-    fig.savefig(save_path, dpi=DPI, bbox_inches="tight", facecolor=fig.get_facecolor())
+    fig.savefig(save_path, dpi=DPI, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"  Saved → {save_path}")
 
