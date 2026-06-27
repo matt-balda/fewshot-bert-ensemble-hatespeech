@@ -172,9 +172,9 @@ def plot_roc_multiclass(data: dict, save_path: Path) -> None:
 
     # Scenario color-band legend at top
     scenario_patches = [
-        mpatches.Patch(facecolor="#2196F3", alpha=0.7, label="Scenario A — Baseline"),
-        mpatches.Patch(facecolor="#FF5722", alpha=0.7, label="Scenario B — Ensemble (no aug.)"),
-        mpatches.Patch(facecolor="#4CAF50", alpha=0.7, label="Scenario C — Few-Shot Augmentation"),
+        mpatches.Patch(facecolor="#2196F3", alpha=0.7, label="Scenario A: Baseline"),
+        mpatches.Patch(facecolor="#FF5722", alpha=0.7, label="Scenario B: Ensemble (no aug.)"),
+        mpatches.Patch(facecolor="#4CAF50", alpha=0.7, label="Scenario C: Few-Shot Augmentation"),
     ]
     fig.legend(
         handles=scenario_patches,
@@ -344,9 +344,9 @@ def plot_pr_curves(data: dict, save_path: Path) -> None:
 
     # ── Shared scenario color legend ──────────────────────────────────────────
     scenario_patches = [
-        mpatches.Patch(facecolor="#2196F3", alpha=0.8, label="Scenario A — Baseline"),
-        mpatches.Patch(facecolor="#FF5722", alpha=0.8, label="Scenario B — Ensemble"),
-        mpatches.Patch(facecolor="#4CAF50", alpha=0.8, label="Scenario C — Few-Shot+Aug"),
+        mpatches.Patch(facecolor="#2196F3", alpha=0.8, label="Scenario A: Baseline"),
+        mpatches.Patch(facecolor="#FF5722", alpha=0.8, label="Scenario B: Ensemble"),
+        mpatches.Patch(facecolor="#4CAF50", alpha=0.8, label="Scenario C: Few-Shot+Aug"),
     ]
     fig.legend(
         handles=scenario_patches,
